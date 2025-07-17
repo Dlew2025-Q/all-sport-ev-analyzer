@@ -141,6 +141,7 @@
         // State variables
         let currentBets = [];
         let GOOGLE_API_KEY = '';
+        let ODDS_API_KEY = '';
 
         // --- Event Listeners ---
         bankrollInput.addEventListener('input', checkFormValidity);
@@ -156,55 +157,88 @@
         });
 
         // --- Core Functions ---
-        async function fetchApiKey() {
-            if (GOOGLE_API_KEY) return; // Don't fetch if we already have it
+        async function fetchApiKeys() {
             try {
-                const response = await fetch('/api/get-key');
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Could not fetch API key from server.');
+                const [googleRes, oddsRes] = await Promise.all([
+                    fetch('/api/get-google-key'),
+                    fetch('/api/get-odds-key')
+                ]);
+                
+                if (!googleRes.ok) {
+                    const errorData = await googleRes.json();
+                    throw new Error(errorData.error || 'Could not fetch Google API key.');
                 }
-                const data = await response.json();
-                if (data.apiKey) {
-                    GOOGLE_API_KEY = data.apiKey;
-                    console.log("API Key loaded successfully.");
-                } else {
-                    throw new Error('API key was not found in the server response.');
+                const googleData = await googleRes.json();
+                GOOGLE_API_KEY = googleData.apiKey;
+
+                if (!oddsRes.ok) {
+                    const errorData = await oddsRes.json();
+                    throw new Error(errorData.error || 'Could not fetch The Odds API key.');
                 }
+                const oddsData = await oddsRes.json();
+                ODDS_API_KEY = oddsData.oddsApiKey;
+
+                console.log("All API Keys loaded successfully.");
+
             } catch (error) {
-                console.error("Failed to get API key:", error);
-                errorMessageDiv.innerHTML = `<strong>Configuration Error:</strong> ${error.message}<br>Please ensure the API_KEY is set in your Render environment variables.`;
+                console.error("Failed to get API keys:", error);
+                errorMessageDiv.innerHTML = `<strong>Configuration Error:</strong> ${error.message}<br>Please ensure API_KEY and ODDS_API_KEY are set in your Render environment variables.`;
                 errorMessageDiv.classList.remove('hidden');
             }
         }
 
         window.onload = () => {
             checkFormValidity();
-            fetchApiKey();
+            fetchApiKeys();
         };
 
         function checkFormValidity() {
             const isBankrollValid = bankrollInput.value && !isNaN(bankrollInput.value) && parseFloat(bankrollInput.value) > 0;
             analyzeButton.disabled = !isBankrollValid;
-            insightsButton.disabled = false; // Insights can run without bankroll
+            insightsButton.disabled = false;
         }
         
-        // --- MOCK API SECTION ---
+        // --- LIVE ODDS API SECTION ---
         async function fetchLiveOdds() {
-            console.log("Fetching mock live odds...");
-            return Promise.resolve([
-                { sport: "NFL", game: "Kansas City Chiefs vs. Denver Broncos", betDetails: "Kansas City Chiefs to Win", odds: "+150" },
-                { sport: "NBA", game: "Los Angeles Lakers vs. Sacramento Kings", betDetails: "Los Angeles Lakers -2.5", odds: "+120" },
-                { sport: "MLB", game: "New York Yankees vs. Boston Red Sox", betDetails: "New York Yankees to Win", odds: "-150" },
-                { sport: "MLB", game: "New York Yankees vs. Boston Red Sox", betDetails: "Boston Red Sox to Win", odds: "+130" },
-                { sport: "MLB", game: "Los Angeles Dodgers vs. San Francisco Giants", betDetails: "Los Angeles Dodgers to Win", odds: "-200" },
-                { sport: "NFL", game: "Philadelphia Eagles vs. Dallas Cowboys", betDetails: "Over 52.5 Points", odds: "-110" },
-                { sport: "NBA", game: "Brooklyn Nets vs. New York Knicks", betDetails: "Total Points Over 220.5", odds: "-110" },
-                { sport: "NHL", game: "Colorado Avalanche vs. Edmonton Oilers", betDetails: "Colorado Avalanche to Win", odds: "+110" },
-                { sport: "NHL", game: "Colorado Avalanche vs. Edmonton Oilers", betDetails: "Over 6.5 Goals", odds: "+100" },
-            ]);
+            if (!ODDS_API_KEY) {
+                throw new Error("The Odds API Key is not available.");
+            }
+
+            console.log("Fetching live odds from The Odds API...");
+            const sports = ['americanfootball_nfl', 'basketball_nba', 'baseball_mlb', 'icehockey_nhl'];
+            const bookmaker = 'draftkings';
+            let allBets = [];
+
+            const sportsString = sports.join(',');
+            const url = `https://api.the-odds-api.com/v4/sports/${sportsString}/odds/?regions=us&markets=h2h&oddsFormat=american&apiKey=${ODDS_API_KEY}`;
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`The Odds API Error: ${errorData.message}`);
+            }
+            const oddsData = await response.json();
+
+            oddsData.forEach(game => {
+                const bookie = game.bookmakers.find(b => b.key === bookmaker);
+                const moneyline = bookie?.markets.find(m => m.key === 'h2h');
+
+                if (moneyline) {
+                    moneyline.outcomes.forEach(outcome => {
+                        allBets.push({
+                            sport: game.sport_title,
+                            game: `${game.away_team} vs. ${game.home_team}`,
+                            betDetails: `${outcome.name} to Win`,
+                            odds: outcome.price > 0 ? `+${outcome.price}` : `${outcome.price}`
+                        });
+                    });
+                }
+            });
+            
+            console.log(`Found ${allBets.length} potential bets.`);
+            return allBets;
         }
-        // --- END MOCK API SECTION ---
+        // --- END LIVE ODDS API SECTION ---
 
         async function analyzeAndDisplayBets() {
             setLoadingState(true, 'bets');
@@ -229,13 +263,16 @@
 
         async function getRawBetAnalysisFromAPI() {
             if (!GOOGLE_API_KEY) {
-                await fetchApiKey();
-                if (!GOOGLE_API_KEY) {
-                    throw new Error("API Key is not available.");
-                }
+                await fetchApiKeys();
+                if (!GOOGLE_API_KEY) throw new Error("Google API Key is not available.");
             }
 
             const liveOddsData = await fetchLiveOdds();
+            if (liveOddsData.length === 0) {
+                console.log("No live odds found from the API.");
+                return [];
+            }
+
             let oddsText = "Analyze the following list of sports betting odds:\n\n";
             liveOddsData.forEach(bet => {
                 oddsText += `- ${bet.sport} - ${bet.game}: ${bet.betDetails} at ${bet.odds}\n`;
