@@ -213,35 +213,44 @@
                 const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?regions=us&markets=h2h&oddsFormat=american&apiKey=${ODDS_API_KEY}`;
                 return fetch(url).then(response => {
                     if (!response.ok) {
-                        // Don't throw an error for a single failed sport, just log it and continue.
                         console.error(`Failed to fetch odds for ${sport}: ${response.statusText}`);
-                        return []; // Return empty array for this sport
+                        return [];
                     }
                     return response.json();
                 });
             });
 
             const results = await Promise.all(promises);
+            const allGames = results.flat();
 
-            results.forEach(sportData => {
-                sportData.forEach(game => {
-                    const bookie = game.bookmakers.find(b => b.key === bookmaker);
-                    const moneyline = bookie?.markets.find(m => m.key === 'h2h');
+            // Filter games to only include those starting within the next 24 hours
+            const now = new Date();
+            const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-                    if (moneyline) {
-                        moneyline.outcomes.forEach(outcome => {
-                            allBets.push({
-                                sport: game.sport_title,
-                                game: `${game.away_team} vs. ${game.home_team}`,
-                                betDetails: `${outcome.name} to Win`,
-                                odds: outcome.price > 0 ? `+${outcome.price}` : `${outcome.price}`
-                            });
-                        });
-                    }
-                });
+            const upcomingGames = allGames.filter(game => {
+                const commenceTime = new Date(game.commence_time);
+                return commenceTime > now && commenceTime < twentyFourHoursFromNow;
             });
             
-            console.log(`Found ${allBets.length} total potential bets across all sports.`);
+            console.log(`Found ${upcomingGames.length} games starting in the next 24 hours.`);
+
+            upcomingGames.forEach(game => {
+                const bookie = game.bookmakers.find(b => b.key === bookmaker);
+                const moneyline = bookie?.markets.find(m => m.key === 'h2h');
+
+                if (moneyline) {
+                    moneyline.outcomes.forEach(outcome => {
+                        allBets.push({
+                            sport: game.sport_title,
+                            game: `${game.away_team} vs. ${game.home_team}`,
+                            betDetails: `${outcome.name} to Win`,
+                            odds: outcome.price > 0 ? `+${outcome.price}` : `${outcome.price}`
+                        });
+                    });
+                }
+            });
+            
+            console.log(`Found ${allBets.length} total potential bets to analyze.`);
             return allBets;
         }
         // --- END LIVE ODDS API SECTION ---
