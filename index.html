@@ -140,6 +140,7 @@
 
         // State variables
         let currentBets = [];
+        let GOOGLE_API_KEY = '';
 
         // --- Event Listeners ---
         bankrollInput.addEventListener('input', checkFormValidity);
@@ -155,25 +156,45 @@
         });
 
         // --- Core Functions ---
+        async function fetchApiKey() {
+            if (GOOGLE_API_KEY) return; // Don't fetch if we already have it
+            try {
+                const response = await fetch('/api/get-key');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Could not fetch API key from server.');
+                }
+                const data = await response.json();
+                if (data.apiKey) {
+                    GOOGLE_API_KEY = data.apiKey;
+                    console.log("API Key loaded successfully.");
+                } else {
+                    throw new Error('API key was not found in the server response.');
+                }
+            } catch (error) {
+                console.error("Failed to get API key:", error);
+                errorMessageDiv.innerHTML = `<strong>Configuration Error:</strong> ${error.message}<br>Please ensure the API_KEY is set in your Render environment variables.`;
+                errorMessageDiv.classList.remove('hidden');
+            }
+        }
+
+        window.onload = () => {
+            checkFormValidity();
+            fetchApiKey();
+        };
+
         function checkFormValidity() {
             const isBankrollValid = bankrollInput.value && !isNaN(bankrollInput.value) && parseFloat(bankrollInput.value) > 0;
             analyzeButton.disabled = !isBankrollValid;
             insightsButton.disabled = false; // Insights can run without bankroll
         }
         
-        // Initial check
-        checkFormValidity();
-
         // --- MOCK API SECTION ---
         async function fetchLiveOdds() {
             console.log("Fetching mock live odds...");
-            // This mock data now includes intentionally "soft" lines to ensure +EV bets are found for demonstration.
             return Promise.resolve([
-                // Intentionally +EV Bets
-                { sport: "NFL", game: "Kansas City Chiefs vs. Denver Broncos", betDetails: "Kansas City Chiefs to Win", odds: "+150" }, // Heavy favorite at plus money
-                { sport: "NBA", game: "Los Angeles Lakers vs. Sacramento Kings", betDetails: "Los Angeles Lakers -2.5", odds: "+120" }, // Small spread at plus money
-                
-                // Standard Lines
+                { sport: "NFL", game: "Kansas City Chiefs vs. Denver Broncos", betDetails: "Kansas City Chiefs to Win", odds: "+150" },
+                { sport: "NBA", game: "Los Angeles Lakers vs. Sacramento Kings", betDetails: "Los Angeles Lakers -2.5", odds: "+120" },
                 { sport: "MLB", game: "New York Yankees vs. Boston Red Sox", betDetails: "New York Yankees to Win", odds: "-150" },
                 { sport: "MLB", game: "New York Yankees vs. Boston Red Sox", betDetails: "Boston Red Sox to Win", odds: "+130" },
                 { sport: "MLB", game: "Los Angeles Dodgers vs. San Francisco Giants", betDetails: "Los Angeles Dodgers to Win", odds: "-200" },
@@ -184,7 +205,6 @@
             ]);
         }
         // --- END MOCK API SECTION ---
-
 
         async function analyzeAndDisplayBets() {
             setLoadingState(true, 'bets');
@@ -198,7 +218,7 @@
                 console.error("Error during full analysis:", error);
                 let userErrorMessage = `Analysis failed. Please try again. (Details: ${error.message})`;
                 if (error.message.includes("401")) {
-                    userErrorMessage = "Authentication Error (401). Please ensure your API key is configured correctly.";
+                    userErrorMessage = "Authentication Error (401). Please check your API key.";
                 }
                 errorMessageDiv.textContent = userErrorMessage;
                 errorMessageDiv.classList.remove('hidden');
@@ -208,8 +228,14 @@
         }
 
         async function getRawBetAnalysisFromAPI() {
-            const liveOddsData = await fetchLiveOdds();
+            if (!GOOGLE_API_KEY) {
+                await fetchApiKey();
+                if (!GOOGLE_API_KEY) {
+                    throw new Error("API Key is not available.");
+                }
+            }
 
+            const liveOddsData = await fetchLiveOdds();
             let oddsText = "Analyze the following list of sports betting odds:\n\n";
             liveOddsData.forEach(bet => {
                 oddsText += `- ${bet.sport} - ${bet.game}: ${bet.betDetails} at ${bet.odds}\n`;
@@ -235,13 +261,12 @@
                     contents: [{ role: "user", parts: [{ text: prompt }, { text: oddsText }] }],
                     generationConfig: { responseMimeType: "application/json" }
                 };
-                const apiKey = "";
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 
                 if (!response.ok) {
                     let errorDetails = `API Error: ${response.status} ${response.statusText}`;
-                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData)}`; } catch (e) {}
+                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData.error.message)}`; } catch (e) {}
                     throw new Error(errorDetails);
                 }
 
@@ -299,13 +324,12 @@
                 const payload = {
                     contents: [{ role: "user", parts: [{ text: prompt }] }]
                 };
-                const apiKey = "";
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 
                 if (!response.ok) {
                    let errorDetails = `API Error: ${response.status} ${response.statusText}`;
-                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData)}`; } catch (e) {}
+                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData.error.message)}`; } catch (e) {}
                     throw new Error(errorDetails);
                 }
 
@@ -415,17 +439,12 @@
                 const ev = (bet.trueProbability * decimalOdds) - 1;
 
                 if (ev > 0.02) {
-                    // Use the AI's estimated "trueProbability" for the stake calculation
                     const p = bet.trueProbability; 
                     const q = 1 - p;
                     const b = decimalOdds - 1;
                     
-                    // Kelly Criterion formula: f = (bp - q) / b
                     const kellyPercentage = (b * p - q) / b;
-                    
                     const baseStake = bankroll * kellyFraction * kellyPercentage;
-                    
-                    // The user also requested to reduce the final stake by 50%
                     const finalStake = baseStake * 0.5;
 
                     processed.push({
