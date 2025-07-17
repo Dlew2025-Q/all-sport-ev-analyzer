@@ -62,7 +62,7 @@
 
         <div class="text-center mb-8 flex flex-col md:flex-row justify-center items-center gap-4">
             <button id="analyze-button" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
-                <span id="button-text">Scan Live Odds for +EV Bets</span>
+                <span id="button-text">Find +EV Bets</span>
                 <div id="loader" class="animate-spin rounded-full h-5 w-5 border-2 border-solid border-white border-t-transparent ml-3 hidden"></div>
             </button>
             <button id="get-insights-button" class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
@@ -142,11 +142,12 @@
         let currentBets = [];
         let GOOGLE_API_KEY = '';
         let ODDS_API_KEY = '';
+        let lastAnalysisResult = null; // Cache the last full analysis
 
         // --- Event Listeners ---
         bankrollInput.addEventListener('input', checkFormValidity);
         kellyFractionSelect.addEventListener('change', checkFormValidity);
-        analyzeButton.addEventListener('click', () => analyzeAndDisplayBets());
+        analyzeButton.addEventListener('click', analyzeAndDisplayBets);
         insightsButton.addEventListener('click', getAiInsights);
         copyButton.addEventListener('click', copyResultsToClipboard);
         modalCloseButton.addEventListener('click', () => insightsModal.classList.add('hidden'));
@@ -223,7 +224,6 @@
             const results = await Promise.all(promises);
             const allGames = results.flat();
 
-            // Filter games to only include those starting within the next 24 hours
             const now = new Date();
             const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -255,28 +255,7 @@
         }
         // --- END LIVE ODDS API SECTION ---
 
-        async function analyzeAndDisplayBets() {
-            setLoadingState(true, 'bets');
-            try {
-                const rawBets = await getRawBetAnalysisFromAPI();
-                if (rawBets) {
-                    const processedBets = processBets(rawBets);
-                    displayResults(processedBets);
-                }
-            } catch (error) {
-                console.error("Error during full analysis:", error);
-                let userErrorMessage = `Analysis failed. Please try again. (Details: ${error.message})`;
-                if (error.message.includes("401")) {
-                    userErrorMessage = "Authentication Error (401). Please check your API key.";
-                }
-                errorMessageDiv.textContent = userErrorMessage;
-                errorMessageDiv.classList.remove('hidden');
-            } finally {
-                setLoadingState(false, 'bets');
-            }
-        }
-
-        async function getRawBetAnalysisFromAPI() {
+        async function runFullAnalysis() {
             if (!GOOGLE_API_KEY) {
                 await fetchApiKeys();
                 if (!GOOGLE_API_KEY) throw new Error("Google API Key is not available.");
@@ -285,7 +264,7 @@
             const liveOddsData = await fetchLiveOdds();
             if (liveOddsData.length === 0) {
                 console.log("No live odds found from the API.");
-                return [];
+                return { quantitativeAnalysis: [], qualitativeAnalysis: "No live games found to analyze." };
             }
 
             let oddsText = "Analyze the following list of sports betting odds:\n\n";
@@ -294,19 +273,22 @@
             });
 
             const prompt = `
-                You are an expert sports betting analyst. Your task is to analyze the provided list of sports betting odds and identify any lines that represent significant value (+EV).
+                You are an expert sports betting analyst. Your task is to analyze the provided list of odds and provide two things: a quantitative analysis of valuable bets, and a qualitative summary of the market.
 
-                **Analysis Method:**
-                1.  Review the entire list of bets provided.
-                2.  Using your expert knowledge, identify only the bets where the odds offered are clearly favorable and likely represent a positive expected value (+EV) of 2% or more.
-                3.  For **only those valuable bets**, provide your estimated "true probability" of success as a decimal (e.g., 0.65 for 65%).
+                **1. Quantitative Analysis:**
+                - Review the entire list of bets.
+                - Identify only the bets where the odds offered likely represent a positive expected value (+EV) of 2% or more.
+                - For **only those valuable bets**, provide your estimated "true probability" of success as a decimal (e.g., 0.65 for 65%).
+
+                **2. Qualitative Analysis:**
+                - Write a concise, insightful summary of the overall betting market based on the provided odds.
+                - Use Markdown for formatting. Cover topics like general market themes, interesting lines, key matchups, and potential betting angles.
 
                 **Final Output:**
-                -   Return a JSON array containing **only the bets you identified as having significant +EV**.
-                -   Each object in the array must include the original bet information plus your estimated probability:
-                    \`{ "sport": "...", "game": "...", "betDetails": "...", "odds": "...", "trueProbability": 0.65 }\`
-                -   If no bets on the list have significant value, return an empty array \`[]\`.
-                -   **CRITICAL:** The final output MUST be only the valid JSON array. Do not include any extra text, comments, reasoning, or explanations.`;
+                Return a single, valid JSON object with two keys: "quantitativeAnalysis" and "qualitativeAnalysis".
+                - The value for "quantitativeAnalysis" must be a JSON array of bet objects. Each object must contain: \`{ "sport": "...", "game": "...", "betDetails": "...", "odds": "...", "trueProbability": 0.65 }\`. If no bets have value, this should be an empty array \`[]\`.
+                - The value for "qualitativeAnalysis" must be a single string containing your Markdown-formatted narrative.
+                - **CRITICAL:** The entire output must be a single, valid JSON object. Do not include any extra text, comments, or explanations outside of this JSON structure.`;
             
             try {
                 const payload = {
@@ -330,14 +312,37 @@
                      if (result.candidates && result.candidates[0].finishReason) {
                         throw new Error(`Analysis stopped by the AI. Reason: ${result.candidates[0].finishReason}`);
                     }
-                    return [];
+                    return { quantitativeAnalysis: [], qualitativeAnalysis: "The AI did not return a valid analysis." };
                 }
             } catch (error) {
-                console.error("Error in getRawBetAnalysisFromAPI:", error);
+                console.error("Error in runFullAnalysis:", error);
                 throw error;
             }
         }
         
+        async function analyzeAndDisplayBets() {
+            setLoadingState(true, 'bets');
+            try {
+                lastAnalysisResult = await runFullAnalysis();
+                if (lastAnalysisResult && lastAnalysisResult.quantitativeAnalysis) {
+                    const processedBets = processBets(lastAnalysisResult.quantitativeAnalysis);
+                    displayResults(processedBets);
+                } else {
+                    displayResults([]);
+                }
+            } catch (error) {
+                console.error("Error during full analysis:", error);
+                let userErrorMessage = `Analysis failed. Please try again. (Details: ${error.message})`;
+                if (error.message.includes("401")) {
+                    userErrorMessage = "Authentication Error (401). Please check your API key.";
+                }
+                errorMessageDiv.textContent = userErrorMessage;
+                errorMessageDiv.classList.remove('hidden');
+            } finally {
+                setLoadingState(false, 'bets');
+            }
+        }
+
         async function getAiInsights() {
             setLoadingState(true, 'insights');
             insightsModal.classList.remove('hidden');
@@ -345,50 +350,12 @@
             insightsText.classList.add('hidden');
 
             try {
-                const rawBets = await getRawBetAnalysisFromAPI();
-                const processedBets = rawBets ? processBets(rawBets) : [];
+                // Use cached result if available, otherwise run a new analysis
+                const analysisResult = lastAnalysisResult || await runFullAnalysis();
+                lastAnalysisResult = analysisResult; // Cache the new result
 
-                let recommendedBetsText = "### Recommended Bets\nNo profitable bets were found in this analysis.";
-                if (processedBets && processedBets.length > 0) {
-                    recommendedBetsText = "### Recommended Bets\n";
-                    processedBets.forEach(bet => {
-                        let eventText = (bet.sport && bet.game) ? `${bet.sport}: ${bet.game}` : `Race ${bet.raceNumber || ''}: ${bet.raceName}`;
-                        recommendedBetsText += `* **${eventText}** - ${bet.betDetails} at ${bet.odds}. Recommended Stake: ${bet.recommendedBet}\n`;
-                    });
-                }
-
-                const prompt = `
-                    You are a sharp, qualitative sports betting analyst. Look at the provided list of sports odds. Provide a concise summary of insights, potential betting angles, and trends.
-
-                    Structure your response using Markdown with headers and bullet points. Cover these topics if applicable:
-                    -   **General Market Overview:** Is there a general theme?
-                    -   **Interesting Lines:** Point out any odds that seem unusual, sharp, or soft.
-                    -   **Key Matchup Insights:** Briefly mention any critical player matchups or team trends.
-                    -   **Potential Betting Angles:** Suggest 2-3 creative betting angles.
-
-                    Your analysis should be insightful but brief. After your qualitative analysis, include the following list of specific bets.
-                    
-                    ---
-                    ${recommendedBetsText}
-                    ---
-                    `;
-                
-                const payload = {
-                    contents: [{ role: "user", parts: [{ text: prompt }] }]
-                };
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`;
-                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                
-                if (!response.ok) {
-                   let errorDetails = `API Error: ${response.status} ${response.statusText}`;
-                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData.error.message)}`; } catch (e) {}
-                    throw new Error(errorDetails);
-                }
-
-                const result = await response.json();
-                
-                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
-                    let rawText = result.candidates[0].content.parts[0].text;
+                if (analysisResult && analysisResult.qualitativeAnalysis) {
+                    let rawText = analysisResult.qualitativeAnalysis;
                     let html = rawText
                         .replace(/^\s*###\s*(.*$)/gim, '<h3>$1</h3>')
                         .replace(/^\s*#\s*(.*$)/gim, '<h3>$1</h3>')
@@ -398,11 +365,7 @@
                     html = html.replace(/<\/ul>\s*<ul>/g, '');
                     insightsText.innerHTML = html;
                 } else {
-                     if (result.candidates && result.candidates[0].finishReason) {
-                        insightsText.innerHTML = `<p>Analysis stopped by the AI. Reason: ${result.candidates[0].finishReason}</p>`;
-                    } else {
-                        insightsText.innerHTML = "<p>Could not generate insights at this time.</p>";
-                    }
+                    insightsText.innerHTML = "<p>Could not generate insights at this time.</p>";
                 }
 
             } catch(error) {
@@ -424,48 +387,26 @@
             const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
             if (markdownMatch && markdownMatch[1]) { text = markdownMatch[1].trim(); } 
             else { text = text.trim(); }
-            const objectCandidates = text.match(/{[\s\S]*?}/g);
-            if (!objectCandidates) { return '[]'; }
-            
-            const validObjects = [];
-            objectCandidates.forEach(candidate => {
-                try {
-                    JSON.parse(candidate);
-                    validObjects.push(candidate);
-                } catch (e) {
-                    console.warn("Dropping invalid JSON object candidate:", candidate);
-                }
-            });
-
-            if (validObjects.length === 0) {
-                return '[]';
-            }
-            return `[${validObjects.join(',')}]`;
+            // This is a simpler clean now since we expect a single object, not an array of objects
+            return text;
         }
         
         function setLoadingState(isLoading, type) {
-            if (type === 'bets') {
-                 if (isLoading) {
-                    analyzeButton.disabled = true;
-                    analyzeButton.classList.add('animate-pulse-bg');
-                    buttonText.textContent = 'Scanning Odds...';
-                    loader.classList.remove('hidden');
-                } else {
-                    analyzeButton.classList.remove('animate-pulse-bg');
-                    checkFormValidity();
-                    buttonText.textContent = 'Scan Live Odds for +EV Bets';
-                    loader.classList.add('hidden');
-                }
-            } else if (type === 'insights') {
-                 if (isLoading) {
-                    insightsButton.disabled = true;
-                    insightsButtonText.textContent = 'Analyzing...';
-                    insightsLoader.classList.remove('hidden');
-                } else {
-                    checkFormValidity();
-                    insightsButtonText.textContent = 'Get AI Insights';
-                    insightsLoader.classList.add('hidden');
-                }
+            const button = type === 'bets' ? analyzeButton : insightsButton;
+            const textEl = type === 'bets' ? buttonText : insightsButtonText;
+            const loaderEl = type === 'bets' ? loader : insightsLoader;
+            const originalText = type === 'bets' ? 'Scan Live Odds for +EV Bets' : 'Get AI Insights';
+            
+            if (isLoading) {
+                button.disabled = true;
+                button.classList.add('animate-pulse-bg');
+                textEl.textContent = 'Analyzing...';
+                loaderEl.classList.remove('hidden');
+            } else {
+                button.classList.remove('animate-pulse-bg');
+                checkFormValidity();
+                textEl.textContent = originalText;
+                loaderEl.classList.add('hidden');
             }
         }
 
