@@ -1,0 +1,12 @@
+{
+  "name": "all-sport-ev-analyzer",
+  "version": "1.0.0",
+  "description": "All Sport +EV Analyzer",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve -s ."
+  },
+  "dependencies": {
+    "serve": "^14.0.1"
+  }
+}

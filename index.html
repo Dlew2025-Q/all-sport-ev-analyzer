@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Sport +EV Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @keyframes pulse-bg {
+            50% {
+                background-color: #1D4ED8;
+            }
+        }
+        .animate-pulse-bg {
+            animation: pulse-bg 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        #insights-modal {
+            transition: opacity 0.3s ease;
+        }
+        #insights-text ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+        #insights-text li {
+            margin-bottom: 8px;
+        }
+         #insights-text h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-5xl mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-10">
+
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300">All Sport +EV Analyzer</h1>
+            <p class="text-lg text-gray-400 mt-2">Scan live odds from major sports and let the AI find the value for you.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+                <label for="bankroll" class="block text-sm font-medium text-gray-300 mb-2">Your Bankroll ($)</label>
+                <input type="number" id="bankroll" placeholder="e.g., 1000" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+            <div>
+                <label for="kellyFraction" class="block text-sm font-medium text-gray-300 mb-2">Kelly Fraction (Risk Tolerance)</label>
+                <select id="kellyFraction" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                    <option value="0.25">Quarter Kelly (Recommended)</option>
+                    <option value="0.5">Half Kelly</option>
+                    <option value="1">Full Kelly</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="text-center mb-8 flex flex-col md:flex-row justify-center items-center gap-4">
+            <button id="analyze-button" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
+                <span id="button-text">Scan Live Odds for +EV Bets</span>
+                <div id="loader" class="animate-spin rounded-full h-5 w-5 border-2 border-solid border-white border-t-transparent ml-3 hidden"></div>
+            </button>
+            <button id="get-insights-button" class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
+                 <span id="insights-button-text">Get AI Insights</span>
+                <div id="insights-loader" class="animate-spin rounded-full h-5 w-5 border-2 border-solid border-white border-t-transparent ml-3 hidden"></div>
+            </button>
+        </div>
+
+        <div id="results-container" class="mt-6">
+            <div id="no-results" class="text-center p-8 bg-gray-700 rounded-lg hidden">
+                <p class="text-lg text-gray-300">No profitable bets found. The market looks sharp!</p>
+            </div>
+            <div id="copy-button-container" class="text-right mb-4 hidden">
+                 <button id="copy-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-1"></path></svg>
+                    <span id="copy-button-text">Copy for OneNote</span>
+                </button>
+            </div>
+            <div id="results-table-container" class="overflow-x-auto hidden">
+                <table class="min-w-full bg-gray-800 text-left">
+                    <thead>
+                        <tr>
+                            <th class="p-4 bg-gray-700 rounded-tl-lg">Event/Game</th>
+                            <th class="p-4 bg-gray-700">Bet Details</th>
+                            <th class="p-4 bg-gray-700">Odds</th>
+                            <th class="p-4 bg-gray-700">Break-Even %</th>
+                            <th class="p-4 bg-gray-700">+EV</th>
+                            <th class="p-4 bg-gray-700 rounded-tr-lg">Recommended Stake</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+         <div id="error-message" class="text-center p-4 bg-red-900 border border-red-700 text-red-300 rounded-lg hidden mt-4">
+            <p>An error occurred during analysis. Please try again.</p>
+        </div>
+    </div>
+    
+    <div id="insights-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative">
+             <button id="modal-close-button" class="absolute top-4 right-4 text-gray-400 hover:text-white">&times;</button>
+             <h2 class="text-2xl font-bold mb-4 text-purple-400">AI-Generated Insights</h2>
+             <div id="modal-loader" class="flex justify-center items-center h-40">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-solid border-white border-t-transparent"></div>
+             </div>
+             <div id="insights-text" class="text-gray-300 leading-relaxed"></div>
+        </div>
+    </div>
+
+
+    <script>
+        // Element References
+        const bankrollInput = document.getElementById('bankroll');
+        const kellyFractionSelect = document.getElementById('kellyFraction');
+        const analyzeButton = document.getElementById('analyze-button');
+        const buttonText = document.getElementById('button-text');
+        const loader = document.getElementById('loader');
+        const insightsButton = document.getElementById('get-insights-button');
+        const insightsButtonText = document.getElementById('insights-button-text');
+        const insightsLoader = document.getElementById('insights-loader');
+        const resultsContainer = document.getElementById('results-container');
+        const noResultsDiv = document.getElementById('no-results');
+        const resultsTableContainer = document.getElementById('results-table-container');
+        const resultsBody = document.getElementById('results-body');
+        const errorMessageDiv = document.getElementById('error-message');
+        const copyButtonContainer = document.getElementById('copy-button-container');
+        const copyButton = document.getElementById('copy-button');
+        const copyButtonText = document.getElementById('copy-button-text');
+        const insightsModal = document.getElementById('insights-modal');
+        const modalCloseButton = document.getElementById('modal-close-button');
+        const modalLoader = document.getElementById('modal-loader');
+        const insightsText = document.getElementById('insights-text');
+
+        // State variables
+        let currentBets = [];
+
+        // --- Event Listeners ---
+        bankrollInput.addEventListener('input', checkFormValidity);
+        kellyFractionSelect.addEventListener('change', checkFormValidity);
+        analyzeButton.addEventListener('click', () => analyzeAndDisplayBets());
+        insightsButton.addEventListener('click', getAiInsights);
+        copyButton.addEventListener('click', copyResultsToClipboard);
+        modalCloseButton.addEventListener('click', () => insightsModal.classList.add('hidden'));
+        insightsModal.addEventListener('click', (e) => {
+            if (e.target === insightsModal) {
+                 insightsModal.classList.add('hidden');
+            }
+        });
+
+        // --- Core Functions ---
+        function checkFormValidity() {
+            const isBankrollValid = bankrollInput.value && !isNaN(bankrollInput.value) && parseFloat(bankrollInput.value) > 0;
+            analyzeButton.disabled = !isBankrollValid;
+            insightsButton.disabled = false; // Insights can run without bankroll
+        }
+        
+        // Initial check
+        checkFormValidity();
+
+        // --- MOCK API SECTION ---
+        async function fetchLiveOdds() {
+            console.log("Fetching mock live odds...");
+            // This mock data now includes intentionally "soft" lines to ensure +EV bets are found for demonstration.
+            return Promise.resolve([
+                // Intentionally +EV Bets
+                { sport: "NFL", game: "Kansas City Chiefs vs. Denver Broncos", betDetails: "Kansas City Chiefs to Win", odds: "+150" }, // Heavy favorite at plus money
+                { sport: "NBA", game: "Los Angeles Lakers vs. Sacramento Kings", betDetails: "Los Angeles Lakers -2.5", odds: "+120" }, // Small spread at plus money
+                
+                // Standard Lines
+                { sport: "MLB", game: "New York Yankees vs. Boston Red Sox", betDetails: "New York Yankees to Win", odds: "-150" },
+                { sport: "MLB", game: "New York Yankees vs. Boston Red Sox", betDetails: "Boston Red Sox to Win", odds: "+130" },
+                { sport: "MLB", game: "Los Angeles Dodgers vs. San Francisco Giants", betDetails: "Los Angeles Dodgers to Win", odds: "-200" },
+                { sport: "NFL", game: "Philadelphia Eagles vs. Dallas Cowboys", betDetails: "Over 52.5 Points", odds: "-110" },
+                { sport: "NBA", game: "Brooklyn Nets vs. New York Knicks", betDetails: "Total Points Over 220.5", odds: "-110" },
+                { sport: "NHL", game: "Colorado Avalanche vs. Edmonton Oilers", betDetails: "Colorado Avalanche to Win", odds: "+110" },
+                { sport: "NHL", game: "Colorado Avalanche vs. Edmonton Oilers", betDetails: "Over 6.5 Goals", odds: "+100" },
+            ]);
+        }
+        // --- END MOCK API SECTION ---
+
+
+        async function analyzeAndDisplayBets() {
+            setLoadingState(true, 'bets');
+            try {
+                const rawBets = await getRawBetAnalysisFromAPI();
+                if (rawBets) {
+                    const processedBets = processBets(rawBets);
+                    displayResults(processedBets);
+                }
+            } catch (error) {
+                console.error("Error during full analysis:", error);
+                let userErrorMessage = `Analysis failed. Please try again. (Details: ${error.message})`;
+                if (error.message.includes("401")) {
+                    userErrorMessage = "Authentication Error (401). Please ensure your API key is configured correctly.";
+                }
+                errorMessageDiv.textContent = userErrorMessage;
+                errorMessageDiv.classList.remove('hidden');
+            } finally {
+                setLoadingState(false, 'bets');
+            }
+        }
+
+        async function getRawBetAnalysisFromAPI() {
+            const liveOddsData = await fetchLiveOdds();
+
+            let oddsText = "Analyze the following list of sports betting odds:\n\n";
+            liveOddsData.forEach(bet => {
+                oddsText += `- ${bet.sport} - ${bet.game}: ${bet.betDetails} at ${bet.odds}\n`;
+            });
+
+            const prompt = `
+                You are an expert sports betting analyst. Your task is to analyze the provided list of sports betting odds and identify any lines that represent significant value (+EV).
+
+                **Analysis Method:**
+                1.  Review the entire list of bets provided.
+                2.  Using your expert knowledge, identify only the bets where the odds offered are clearly favorable and likely represent a positive expected value (+EV) of 2% or more.
+                3.  For **only those valuable bets**, provide your estimated "true probability" of success as a decimal (e.g., 0.65 for 65%).
+
+                **Final Output:**
+                -   Return a JSON array containing **only the bets you identified as having significant +EV**.
+                -   Each object in the array must include the original bet information plus your estimated probability:
+                    \`{ "sport": "...", "game": "...", "betDetails": "...", "odds": "...", "trueProbability": 0.65 }\`
+                -   If no bets on the list have significant value, return an empty array \`[]\`.
+                -   **CRITICAL:** The final output MUST be only the valid JSON array. Do not include any extra text, comments, reasoning, or explanations.`;
+            
+            try {
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }, { text: oddsText }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                
+                if (!response.ok) {
+                    let errorDetails = `API Error: ${response.status} ${response.statusText}`;
+                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData)}`; } catch (e) {}
+                    throw new Error(errorDetails);
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                    const cleanedJsonText = cleanJson(result.candidates[0].content.parts[0].text);
+                    return JSON.parse(cleanedJsonText);
+                } else {
+                     if (result.candidates && result.candidates[0].finishReason) {
+                        throw new Error(`Analysis stopped by the AI. Reason: ${result.candidates[0].finishReason}`);
+                    }
+                    return [];
+                }
+            } catch (error) {
+                console.error("Error in getRawBetAnalysisFromAPI:", error);
+                throw error;
+            }
+        }
+        
+        async function getAiInsights() {
+            setLoadingState(true, 'insights');
+            insightsModal.classList.remove('hidden');
+            modalLoader.classList.remove('hidden');
+            insightsText.classList.add('hidden');
+
+            try {
+                const rawBets = await getRawBetAnalysisFromAPI();
+                const processedBets = rawBets ? processBets(rawBets) : [];
+
+                let recommendedBetsText = "### Recommended Bets\nNo profitable bets were found in this analysis.";
+                if (processedBets && processedBets.length > 0) {
+                    recommendedBetsText = "### Recommended Bets\n";
+                    processedBets.forEach(bet => {
+                        let eventText = (bet.sport && bet.game) ? `${bet.sport}: ${bet.game}` : `Race ${bet.raceNumber || ''}: ${bet.raceName}`;
+                        recommendedBetsText += `* **${eventText}** - ${bet.betDetails} at ${bet.odds}. Recommended Stake: ${bet.recommendedBet}\n`;
+                    });
+                }
+
+                const prompt = `
+                    You are a sharp, qualitative sports betting analyst. Look at the provided list of sports odds. Provide a concise summary of insights, potential betting angles, and trends.
+
+                    Structure your response using Markdown with headers and bullet points. Cover these topics if applicable:
+                    -   **General Market Overview:** Is there a general theme?
+                    -   **Interesting Lines:** Point out any odds that seem unusual, sharp, or soft.
+                    -   **Key Matchup Insights:** Briefly mention any critical player matchups or team trends.
+                    -   **Potential Betting Angles:** Suggest 2-3 creative betting angles.
+
+                    Your analysis should be insightful but brief. After your qualitative analysis, include the following list of specific bets.
+                    
+                    ---
+                    ${recommendedBetsText}
+                    ---
+                    `;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }]
+                };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                
+                if (!response.ok) {
+                   let errorDetails = `API Error: ${response.status} ${response.statusText}`;
+                    try { const errorData = await response.json(); errorDetails += ` - ${JSON.stringify(errorData)}`; } catch (e) {}
+                    throw new Error(errorDetails);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                    let rawText = result.candidates[0].content.parts[0].text;
+                    let html = rawText
+                        .replace(/^\s*###\s*(.*$)/gim, '<h3>$1</h3>')
+                        .replace(/^\s*#\s*(.*$)/gim, '<h3>$1</h3>')
+                        .replace(/^\s*\*\s*(.*$)/gim, '<li>$1</li>');
+                    html = html.replace(/<\/li>\s*<li>/g, '</li><li>');
+                    html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>');
+                    html = html.replace(/<\/ul>\s*<ul>/g, '');
+                    insightsText.innerHTML = html;
+                } else {
+                     if (result.candidates && result.candidates[0].finishReason) {
+                        insightsText.innerHTML = `<p>Analysis stopped by the AI. Reason: ${result.candidates[0].finishReason}</p>`;
+                    } else {
+                        insightsText.innerHTML = "<p>Could not generate insights at this time.</p>";
+                    }
+                }
+
+            } catch(error) {
+                console.error("Error fetching AI Insights:", error);
+                let userErrorMessage = `An error occurred while generating insights. Please try again. (Details: ${error.message})`;
+                 if (error.message.includes("401")) {
+                    userErrorMessage = "Authentication Error (401). Please ensure your API key is configured correctly.";
+                }
+                insightsText.innerHTML = `<p class="text-red-400">${userErrorMessage}</p>`;
+            } finally {
+                modalLoader.classList.add('hidden');
+                insightsText.classList.remove('hidden');
+                setLoadingState(false, 'insights');
+            }
+        }
+
+
+        function cleanJson(text) {
+            const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+            if (markdownMatch && markdownMatch[1]) { text = markdownMatch[1].trim(); } 
+            else { text = text.trim(); }
+            const objectCandidates = text.match(/{[\s\S]*?}/g);
+            if (!objectCandidates) { return '[]'; }
+            
+            const validObjects = [];
+            objectCandidates.forEach(candidate => {
+                try {
+                    JSON.parse(candidate);
+                    validObjects.push(candidate);
+                } catch (e) {
+                    console.warn("Dropping invalid JSON object candidate:", candidate);
+                }
+            });
+
+            if (validObjects.length === 0) {
+                return '[]';
+            }
+            return `[${validObjects.join(',')}]`;
+        }
+        
+        function setLoadingState(isLoading, type) {
+            if (type === 'bets') {
+                 if (isLoading) {
+                    analyzeButton.disabled = true;
+                    analyzeButton.classList.add('animate-pulse-bg');
+                    buttonText.textContent = 'Scanning Odds...';
+                    loader.classList.remove('hidden');
+                } else {
+                    analyzeButton.classList.remove('animate-pulse-bg');
+                    checkFormValidity();
+                    buttonText.textContent = 'Scan Live Odds for +EV Bets';
+                    loader.classList.add('hidden');
+                }
+            } else if (type === 'insights') {
+                 if (isLoading) {
+                    insightsButton.disabled = true;
+                    insightsButtonText.textContent = 'Analyzing...';
+                    insightsLoader.classList.remove('hidden');
+                } else {
+                    checkFormValidity();
+                    insightsButtonText.textContent = 'Get AI Insights';
+                    insightsLoader.classList.add('hidden');
+                }
+            }
+        }
+
+        function calculateBreakEven(odds) {
+            const oddsNum = parseFloat(odds);
+            if (isNaN(oddsNum)) return 'N/A';
+            let probability;
+            if (oddsNum > 0) { probability = 100 / (oddsNum + 100); } 
+            else { probability = Math.abs(oddsNum) / (Math.abs(oddsNum) + 100); }
+            return (probability * 100).toFixed(1) + '%';
+        }
+
+        function processBets(rawBets) {
+            const bankroll = parseFloat(bankrollInput.value) || 0;
+            const kellyFraction = parseFloat(kellyFractionSelect.value);
+            const processed = [];
+
+            rawBets.forEach(bet => {
+                const oddsNum = parseFloat(bet.odds);
+                if (isNaN(oddsNum) || typeof bet.trueProbability !== 'number' || bet.trueProbability <= 0 || bet.trueProbability >= 1) return;
+
+                const decimalOdds = oddsNum > 0 ? (oddsNum / 100) + 1 : (100 / Math.abs(oddsNum)) + 1;
+                const ev = (bet.trueProbability * decimalOdds) - 1;
+
+                if (ev > 0.02) {
+                    // Use the AI's estimated "trueProbability" for the stake calculation
+                    const p = bet.trueProbability; 
+                    const q = 1 - p;
+                    const b = decimalOdds - 1;
+                    
+                    // Kelly Criterion formula: f = (bp - q) / b
+                    const kellyPercentage = (b * p - q) / b;
+                    
+                    const baseStake = bankroll * kellyFraction * kellyPercentage;
+                    
+                    // The user also requested to reduce the final stake by 50%
+                    const finalStake = baseStake * 0.5;
+
+                    processed.push({
+                        ...bet,
+                        positiveEV: `+${(ev * 100).toFixed(1)}%`,
+                        recommendedBet: finalStake > 0 ? `$${finalStake.toFixed(2)}` : '$0.00'
+                    });
+                }
+            });
+
+            return processed.sort((a, b) => parseFloat(b.positiveEV) - parseFloat(a.positiveEV));
+        }
+
+
+        function displayResults(bets) {
+            currentBets = bets;
+            resultsBody.innerHTML = '';
+            
+            if (bets && bets.length > 0) {
+                bets.forEach(bet => {
+                    let eventHtml = 'N/A';
+                    if (bet.sport && bet.game) { eventHtml = `<strong>${bet.sport}:</strong> ${bet.game}`; } 
+                    else if (bet.raceName) { eventHtml = `<strong>Race ${bet.raceNumber || ''}:</strong> ${bet.raceName}`; }
+                    
+                    const breakEvenPercent = calculateBreakEven(bet.odds);
+
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-700 hover:bg-gray-700/50';
+                    row.innerHTML = `
+                        <td class="p-4 text-gray-300">${eventHtml}</td>
+                        <td class="p-4 font-medium">${bet.betDetails}</td>
+                        <td class="p-4 text-gray-300">${bet.odds}</td>
+                        <td class="p-4 text-gray-400">${breakEvenPercent}</td>
+                        <td class="p-4 font-semibold text-green-400">${bet.positiveEV}</td>
+                        <td class="p-4 font-semibold text-teal-300">${bet.recommendedBet}</td>
+                    `;
+                    resultsBody.appendChild(row);
+                });
+                resultsTableContainer.classList.remove('hidden');
+                copyButtonContainer.classList.remove('hidden');
+                noResultsDiv.classList.add('hidden');
+            } else {
+                resultsTableContainer.classList.add('hidden');
+                copyButtonContainer.classList.add('hidden');
+                noResultsDiv.classList.remove('hidden');
+            }
+        }
+
+        function copyResultsToClipboard() {
+            if (currentBets.length === 0) return;
+
+            let html = `<table style="border-collapse: collapse; width: 100%; font-family: Inter, sans-serif; color: #D1D5DB; background-color: #1F2937;">
+                <thead>
+                    <tr>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Event/Game</th>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Bet Details</th>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Odds</th>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Break-Even %</th>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">+EV</th>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Recommended Stake</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            currentBets.forEach(bet => {
+                let eventText = 'N/A';
+                if (bet.sport && bet.game) { eventText = `<strong>${bet.sport}:</strong> ${bet.game}`; } 
+                else if (bet.raceName) { eventText = `<strong>Race ${bet.raceNumber || ''}:</strong> ${bet.raceName}`; }
+                
+                const breakEvenPercent = calculateBreakEven(bet.odds);
+
+                html += `<tr style="border-bottom: 1px solid #374151;">
+                    <td style="padding: 12px;">${eventText}</td>
+                    <td style="padding: 12px; color: #FFFFFF; font-weight: 500;">${bet.betDetails}</td>
+                    <td style="padding: 12px;">${bet.odds}</td>
+                    <td style="padding: 12px; color: #9CA3AF;">${breakEvenPercent}</td>
+                    <td style="padding: 12px; font-weight: 600; color: #4ADE80;">${bet.positiveEV}</td>
+                    <td style="padding: 12px; font-weight: 600; color: #5EEAD4;">${bet.recommendedBet}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table>`;
+            
+            const listener = function(ev) {
+                ev.preventDefault();
+                ev.clipboardData.setData('text/html', html);
+                ev.clipboardData.setData('text/plain', 'Data copied from AI Sports Bet Analyzer.');
+            };
+            document.addEventListener('copy', listener);
+            
+            try {
+                document.execCommand('copy');
+                copyButtonText.textContent = 'Copied!';
+                 setTimeout(() => { copyButtonText.textContent = 'Copy for OneNote'; }, 2000);
+            } catch (err) {
+                 console.error('Failed to copy HTML table: ', err);
+                copyButtonText.textContent = 'Copy Failed';
+                 setTimeout(() => { copyButtonText.textContent = 'Copy for OneNote'; }, 2000);
+            } finally {
+                document.removeEventListener('copy', listener);
+            }
+        }
+    </script>
+</body>
+</html>
