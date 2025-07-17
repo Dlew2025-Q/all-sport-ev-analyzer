@@ -209,33 +209,39 @@
             const bookmaker = 'draftkings';
             let allBets = [];
 
-            const sportsString = sports.join(',');
-            const url = `https://api.the-odds-api.com/v4/sports/${sportsString}/odds/?regions=us&markets=h2h&oddsFormat=american&apiKey=${ODDS_API_KEY}`;
-            
-            const response = await fetch(url);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`The Odds API Error: ${errorData.message}`);
-            }
-            const oddsData = await response.json();
+            const promises = sports.map(sport => {
+                const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?regions=us&markets=h2h&oddsFormat=american&apiKey=${ODDS_API_KEY}`;
+                return fetch(url).then(response => {
+                    if (!response.ok) {
+                        // Don't throw an error for a single failed sport, just log it and continue.
+                        console.error(`Failed to fetch odds for ${sport}: ${response.statusText}`);
+                        return []; // Return empty array for this sport
+                    }
+                    return response.json();
+                });
+            });
 
-            oddsData.forEach(game => {
-                const bookie = game.bookmakers.find(b => b.key === bookmaker);
-                const moneyline = bookie?.markets.find(m => m.key === 'h2h');
+            const results = await Promise.all(promises);
 
-                if (moneyline) {
-                    moneyline.outcomes.forEach(outcome => {
-                        allBets.push({
-                            sport: game.sport_title,
-                            game: `${game.away_team} vs. ${game.home_team}`,
-                            betDetails: `${outcome.name} to Win`,
-                            odds: outcome.price > 0 ? `+${outcome.price}` : `${outcome.price}`
+            results.forEach(sportData => {
+                sportData.forEach(game => {
+                    const bookie = game.bookmakers.find(b => b.key === bookmaker);
+                    const moneyline = bookie?.markets.find(m => m.key === 'h2h');
+
+                    if (moneyline) {
+                        moneyline.outcomes.forEach(outcome => {
+                            allBets.push({
+                                sport: game.sport_title,
+                                game: `${game.away_team} vs. ${game.home_team}`,
+                                betDetails: `${outcome.name} to Win`,
+                                odds: outcome.price > 0 ? `+${outcome.price}` : `${outcome.price}`
+                            });
                         });
-                    });
-                }
+                    }
+                });
             });
             
-            console.log(`Found ${allBets.length} potential bets.`);
+            console.log(`Found ${allBets.length} total potential bets across all sports.`);
             return allBets;
         }
         // --- END LIVE ODDS API SECTION ---
