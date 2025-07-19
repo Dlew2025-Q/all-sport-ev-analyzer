@@ -34,11 +34,16 @@
             margin-top: 1rem;
             margin-bottom: 0.5rem;
         }
+        /* Style for rows with a placed bet */
+        .bet-placed {
+            opacity: 0.5;
+            background-color: #111827; /* gray-900 */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
-    <div class="w-full max-w-5xl mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-10">
+    <div class="w-full max-w-6xl mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-10">
 
         <header class="text-center mb-8">
             <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300">All Sport +EV Analyzer</h1>
@@ -62,7 +67,7 @@
 
         <div class="text-center mb-8 flex flex-col md:flex-row justify-center items-center gap-4">
             <button id="analyze-button" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
-                <span id="button-text">Find +EV Bets</span>
+                <span id="button-text">Scan Live Odds for +EV Bets</span>
                 <div id="loader" class="animate-spin rounded-full h-5 w-5 border-2 border-solid border-white border-t-transparent ml-3 hidden"></div>
             </button>
             <button id="get-insights-button" class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
@@ -90,7 +95,8 @@
                             <th class="p-4 bg-gray-700">Odds</th>
                             <th class="p-4 bg-gray-700">Break-Even %</th>
                             <th class="p-4 bg-gray-700">+EV</th>
-                            <th class="p-4 bg-gray-700 rounded-tr-lg">Recommended Stake</th>
+                            <th class="p-4 bg-gray-700">Recommended Stake</th>
+                            <th class="p-4 bg-gray-700 rounded-tr-lg">Placed</th>
                         </tr>
                     </thead>
                     <tbody id="results-body">
@@ -142,12 +148,12 @@
         let currentBets = [];
         let GOOGLE_API_KEY = '';
         let ODDS_API_KEY = '';
-        let lastAnalysisResult = null; // Cache the last full analysis
+        let lastAnalysisResult = null;
 
         // --- Event Listeners ---
         bankrollInput.addEventListener('input', checkFormValidity);
         kellyFractionSelect.addEventListener('change', checkFormValidity);
-        analyzeButton.addEventListener('click', analyzeAndDisplayBets);
+        analyzeButton.addEventListener('click', () => analyzeAndDisplayBets());
         insightsButton.addEventListener('click', getAiInsights);
         copyButton.addEventListener('click', copyResultsToClipboard);
         modalCloseButton.addEventListener('click', () => insightsModal.classList.add('hidden'));
@@ -276,7 +282,7 @@
                 You are an expert sports betting analyst. Your task is to analyze the provided list of odds and provide two things: a quantitative analysis of valuable bets, and a qualitative summary of the market.
 
                 **1. Quantitative Analysis:**
-                - Review the entire list of bets.
+                - Review the entire list of bets provided.
                 - Identify only the bets where the odds offered likely represent a positive expected value (+EV) of 2% or more.
                 - For **only those valuable bets**, provide your estimated "true probability" of success as a decimal (e.g., 0.65 for 65%).
 
@@ -350,9 +356,8 @@
             insightsText.classList.add('hidden');
 
             try {
-                // Use cached result if available, otherwise run a new analysis
                 const analysisResult = lastAnalysisResult || await runFullAnalysis();
-                lastAnalysisResult = analysisResult; // Cache the new result
+                lastAnalysisResult = analysisResult;
 
                 if (analysisResult && analysisResult.qualitativeAnalysis) {
                     let rawText = analysisResult.qualitativeAnalysis;
@@ -387,7 +392,6 @@
             const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
             if (markdownMatch && markdownMatch[1]) { text = markdownMatch[1].trim(); } 
             else { text = text.trim(); }
-            // This is a simpler clean now since we expect a single object, not an array of objects
             return text;
         }
         
@@ -455,9 +459,13 @@
         function displayResults(bets) {
             currentBets = bets;
             resultsBody.innerHTML = '';
+            const placedBets = getPlacedBets();
             
             if (bets && bets.length > 0) {
                 bets.forEach(bet => {
+                    const betId = `${bet.game}|${bet.betDetails}`;
+                    const isPlaced = placedBets.includes(betId);
+                    
                     let eventHtml = 'N/A';
                     if (bet.sport && bet.game) { eventHtml = `<strong>${bet.sport}:</strong> ${bet.game}`; } 
                     else if (bet.raceName) { eventHtml = `<strong>Race ${bet.raceNumber || ''}:</strong> ${bet.raceName}`; }
@@ -465,7 +473,7 @@
                     const breakEvenPercent = calculateBreakEven(bet.odds);
 
                     const row = document.createElement('tr');
-                    row.className = 'border-b border-gray-700 hover:bg-gray-700/50';
+                    row.className = `border-b border-gray-700 hover:bg-gray-700/50 ${isPlaced ? 'bet-placed' : ''}`;
                     row.innerHTML = `
                         <td class="p-4 text-gray-300">${eventHtml}</td>
                         <td class="p-4 font-medium">${bet.betDetails}</td>
@@ -473,9 +481,18 @@
                         <td class="p-4 text-gray-400">${breakEvenPercent}</td>
                         <td class="p-4 font-semibold text-green-400">${bet.positiveEV}</td>
                         <td class="p-4 font-semibold text-teal-300">${bet.recommendedBet}</td>
+                        <td class="p-4 text-center">
+                            <input type="checkbox" data-bet-id="${betId}" class="w-6 h-6 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500" ${isPlaced ? 'checked' : ''}>
+                        </td>
                     `;
                     resultsBody.appendChild(row);
                 });
+                
+                // Add event listeners to the new checkboxes
+                document.querySelectorAll('input[type="checkbox"][data-bet-id]').forEach(checkbox => {
+                    checkbox.addEventListener('change', handleBetPlacedToggle);
+                });
+
                 resultsTableContainer.classList.remove('hidden');
                 copyButtonContainer.classList.remove('hidden');
                 noResultsDiv.classList.add('hidden');
@@ -485,6 +502,40 @@
                 noResultsDiv.classList.remove('hidden');
             }
         }
+        
+        // --- Bet Tracking Functions ---
+        function getPlacedBets() {
+            try {
+                const bets = localStorage.getItem('placedBets');
+                return bets ? JSON.parse(bets) : [];
+            } catch (e) {
+                console.error("Could not parse placed bets from localStorage", e);
+                return [];
+            }
+        }
+
+        function savePlacedBets(bets) {
+            localStorage.setItem('placedBets', JSON.stringify(bets));
+        }
+
+        function handleBetPlacedToggle(event) {
+            const checkbox = event.target;
+            const betId = checkbox.dataset.betId;
+            const row = checkbox.closest('tr');
+            
+            let placedBets = getPlacedBets();
+            if (checkbox.checked) {
+                if (!placedBets.includes(betId)) {
+                    placedBets.push(betId);
+                }
+                row.classList.add('bet-placed');
+            } else {
+                placedBets = placedBets.filter(id => id !== betId);
+                row.classList.remove('bet-placed');
+            }
+            savePlacedBets(placedBets);
+        }
+        // --- End Bet Tracking Functions ---
 
         function copyResultsToClipboard() {
             if (currentBets.length === 0) return;
