@@ -93,7 +93,7 @@
                             <th class="p-4 bg-gray-700 rounded-tl-lg">Event/Game</th>
                             <th class="p-4 bg-gray-700">Bet Details</th>
                             <th class="p-4 bg-gray-700">Odds</th>
-                            <th class="p-4 bg-gray-700">Break-Even %</th>
+                            <th class="p-4 bg-gray-700">Win % Needed</th>
                             <th class="p-4 bg-gray-700">+EV</th>
                             <th class="p-4 bg-gray-700">Recommended Stake</th>
                             <th class="p-4 bg-gray-700 rounded-tr-lg">Placed</th>
@@ -414,7 +414,7 @@
             }
         }
 
-        function calculateBreakEven(odds) {
+        function calculateWinPercentageNeeded(odds) {
             const oddsNum = parseFloat(odds);
             if (isNaN(oddsNum)) return 'N/A';
             let probability;
@@ -470,7 +470,7 @@
                     if (bet.sport && bet.game) { eventHtml = `<strong>${bet.sport}:</strong> ${bet.game}`; } 
                     else if (bet.raceName) { eventHtml = `<strong>Race ${bet.raceNumber || ''}:</strong> ${bet.raceName}`; }
                     
-                    const breakEvenPercent = calculateBreakEven(bet.odds);
+                    const winPercentageNeeded = calculateWinPercentageNeeded(bet.odds);
 
                     const row = document.createElement('tr');
                     row.className = `border-b border-gray-700 hover:bg-gray-700/50 ${isPlaced ? 'bet-placed' : ''}`;
@@ -478,7 +478,7 @@
                         <td class="p-4 text-gray-300">${eventHtml}</td>
                         <td class="p-4 font-medium">${bet.betDetails}</td>
                         <td class="p-4 text-gray-300">${bet.odds}</td>
-                        <td class="p-4 text-gray-400">${breakEvenPercent}</td>
+                        <td class="p-4 text-gray-400">${winPercentageNeeded}</td>
                         <td class="p-4 font-semibold text-green-400">${bet.positiveEV}</td>
                         <td class="p-4 font-semibold text-teal-300">${bet.recommendedBet}</td>
                         <td class="p-4 text-center">
@@ -546,7 +546,7 @@
                         <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Event/Game</th>
                         <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Bet Details</th>
                         <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Odds</th>
-                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Break-Even %</th>
+                        <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Win % Needed</th>
                         <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">+EV</th>
                         <th style="padding: 12px; text-align: left; background-color: #374151; border-bottom: 1px solid #4B5563;">Recommended Stake</th>
                     </tr>
@@ -558,13 +558,13 @@
                 if (bet.sport && bet.game) { eventText = `<strong>${bet.sport}:</strong> ${bet.game}`; } 
                 else if (bet.raceName) { eventText = `<strong>Race ${bet.raceNumber || ''}:</strong> ${bet.raceName}`; }
                 
-                const breakEvenPercent = calculateBreakEven(bet.odds);
+                const winPercentageNeeded = calculateWinPercentageNeeded(bet.odds);
 
                 html += `<tr style="border-bottom: 1px solid #374151;">
                     <td style="padding: 12px;">${eventText}</td>
                     <td style="padding: 12px; color: #FFFFFF; font-weight: 500;">${bet.betDetails}</td>
                     <td style="padding: 12px;">${bet.odds}</td>
-                    <td style="padding: 12px; color: #9CA3AF;">${breakEvenPercent}</td>
+                    <td style="padding: 12px; color: #9CA3AF;">${winPercentageNeeded}</td>
                     <td style="padding: 12px; font-weight: 600; color: #4ADE80;">${bet.positiveEV}</td>
                     <td style="padding: 12px; font-weight: 600; color: #5EEAD4;">${bet.recommendedBet}</td>
                 </tr>`;
