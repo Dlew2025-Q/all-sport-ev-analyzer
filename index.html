@@ -34,9 +34,13 @@
             margin-top: 1rem;
             margin-bottom: 0.5rem;
         }
-        /* Style for rows with a resolved bet */
+        /* Style for rows with a placed/resolved bet */
+        .bet-placed {
+            opacity: 0.6;
+        }
         .bet-resolved {
-            opacity: 0.5;
+            opacity: 0.4;
+            background-color: #111827; /* gray-900 */
         }
         .progress-bar-fill {
             transition: width 0.5s ease-in-out;
@@ -45,7 +49,7 @@
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
-    <div class="w-full max-w-6xl mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-10">
+    <div class="w-full max-w-7xl mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-10">
 
         <header class="text-center mb-8">
             <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300">All Sport +EV Analyzer</h1>
@@ -95,6 +99,7 @@
                             <th class="p-4 bg-gray-700">Win % Needed</th>
                             <th class="p-4 bg-gray-700">+EV</th>
                             <th class="p-4 bg-gray-700">Stake</th>
+                            <th class="p-4 bg-gray-700">Placed</th>
                             <th class="p-4 bg-gray-700 rounded-tr-lg">Result</th>
                         </tr>
                     </thead>
@@ -187,7 +192,6 @@
                 ODDS_API_KEY = oddsData.oddsApiKey;
 
                 console.log("All API Keys loaded successfully.");
-                // Enable buttons once keys are loaded
                 analyzeButton.disabled = false;
                 insightsButton.disabled = false;
 
@@ -444,20 +448,24 @@
         function displayResults(bets) {
             currentBets = bets;
             resultsBody.innerHTML = '';
-            const resolvedBets = getResolvedBets();
+            const betTracker = getBetTracker();
             
             if (bets && bets.length > 0) {
                 bets.forEach(bet => {
                     const betId = `${bet.game}|${bet.betDetails}`;
-                    const isResolved = resolvedBets.hasOwnProperty(betId);
+                    const betState = betTracker[betId] || { status: 'new' };
                     
                     let eventHtml = 'N/A';
                     if (bet.sport && bet.game) { eventHtml = `<strong>${bet.sport}:</strong> ${bet.game}`; } 
                     
                     const winPercentageNeeded = calculateWinPercentageNeeded(bet.odds);
 
+                    let rowClass = 'border-b border-gray-700 hover:bg-gray-700/50';
+                    if (betState.status === 'placed') rowClass = 'border-b border-gray-700 bet-placed';
+                    if (betState.status === 'resolved') rowClass = 'border-b border-gray-700 bet-resolved';
+
                     const row = document.createElement('tr');
-                    row.className = `border-b border-gray-700 ${isResolved ? 'bet-resolved' : 'hover:bg-gray-700/50'}`;
+                    row.className = rowClass;
                     row.innerHTML = `
                         <td class="p-4 text-gray-300">${eventHtml}</td>
                         <td class="p-4 font-medium">${bet.betDetails}</td>
@@ -466,16 +474,22 @@
                         <td class="p-4 font-semibold text-green-400">${bet.positiveEV}</td>
                         <td class="p-4 font-semibold text-teal-300">1 Unit</td>
                         <td class="p-4 text-center">
+                            <input type="checkbox" data-bet-id="${betId}" class="placed-checkbox w-6 h-6 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500" ${betState.status !== 'new' ? 'checked' : ''} ${betState.status === 'resolved' ? 'disabled' : ''}>
+                        </td>
+                        <td class="p-4 text-center">
                             <div class="flex justify-center items-center space-x-2" data-bet-id="${betId}" data-odds="${bet.odds}">
-                                <button class="bet-result-btn bg-green-600 hover:bg-green-700 w-8 h-8 rounded-full font-bold" data-result="W" ${isResolved ? 'disabled' : ''}>W</button>
-                                <button class="bet-result-btn bg-red-600 hover:bg-red-700 w-8 h-8 rounded-full font-bold" data-result="L" ${isResolved ? 'disabled' : ''}>L</button>
-                                <button class="bet-result-btn bg-gray-600 hover:bg-gray-700 w-8 h-8 rounded-full font-bold" data-result="P" ${isResolved ? 'disabled' : ''}>P</button>
+                                <button class="bet-result-btn bg-green-600 hover:bg-green-700 w-8 h-8 rounded-full font-bold" data-result="W" ${betState.status !== 'placed' ? 'disabled' : ''}>W</button>
+                                <button class="bet-result-btn bg-red-600 hover:bg-red-700 w-8 h-8 rounded-full font-bold" data-result="L" ${betState.status !== 'placed' ? 'disabled' : ''}>L</button>
+                                <button class="bet-result-btn bg-gray-600 hover:bg-gray-700 w-8 h-8 rounded-full font-bold" data-result="P" ${betState.status !== 'placed' ? 'disabled' : ''}>P</button>
                             </div>
                         </td>
                     `;
                     resultsBody.appendChild(row);
                 });
                 
+                document.querySelectorAll('.placed-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', handleBetPlacedToggle);
+                });
                 document.querySelectorAll('.bet-result-btn').forEach(button => {
                     button.addEventListener('click', handleBetResult);
                 });
@@ -493,15 +507,15 @@
         // --- Scoreboard and Bet Tracking Functions ---
         function getScoreboardData() {
             const data = localStorage.getItem('scoreboardData');
-            return data ? JSON.parse(data) : { units: 0, resolvedBets: {} };
+            return data ? JSON.parse(data) : { units: 0, betTracker: {} };
         }
 
         function saveScoreboardData(data) {
             localStorage.setItem('scoreboardData', JSON.stringify(data));
         }
         
-        function getResolvedBets() {
-            return getScoreboardData().resolvedBets;
+        function getBetTracker() {
+            return getScoreboardData().betTracker;
         }
 
         function updateScoreboard() {
@@ -512,6 +526,29 @@
             
             unitDisplay.textContent = `${units.toFixed(2)} / ${goal.toFixed(2)} Units`;
             progressBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        }
+
+        function handleBetPlacedToggle(event) {
+            const checkbox = event.target;
+            const betId = checkbox.dataset.betId;
+            const row = checkbox.closest('tr');
+            const resultButtons = row.querySelectorAll('.bet-result-btn');
+            
+            const data = getScoreboardData();
+
+            if (checkbox.checked) {
+                data.betTracker[betId] = { status: 'placed' };
+                row.classList.add('bet-placed');
+                resultButtons.forEach(btn => btn.disabled = false);
+            } else {
+                // This logic prevents un-placing a resolved bet
+                if (data.betTracker[betId] && data.betTracker[betId].status !== 'resolved') {
+                    delete data.betTracker[betId];
+                    row.classList.remove('bet-placed');
+                    resultButtons.forEach(btn => btn.disabled = true);
+                }
+            }
+            saveScoreboardData(data);
         }
 
         function handleBetResult(event) {
@@ -534,22 +571,22 @@
 
             const data = getScoreboardData();
             data.units += unitsChanged;
-            data.resolvedBets[betId] = result;
+            data.betTracker[betId] = { status: 'resolved', result: result };
             saveScoreboardData(data);
             
             updateScoreboard();
 
-            // Visually disable the row
             const row = container.closest('tr');
+            row.classList.remove('bet-placed');
             row.classList.add('bet-resolved');
             container.querySelectorAll('button').forEach(btn => btn.disabled = true);
+            row.querySelector('.placed-checkbox').disabled = true;
         }
 
         function resetScoreboard() {
             if (confirm("Are you sure you want to reset your weekly progress? This cannot be undone.")) {
-                saveScoreboardData({ units: 0, resolvedBets: {} });
+                saveScoreboardData({ units: 0, betTracker: {} });
                 updateScoreboard();
-                // Refresh the table to show all bets as unresolved again
                 if (currentBets.length > 0) {
                     displayResults(currentBets);
                 }
