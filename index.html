@@ -507,7 +507,14 @@
         // --- Scoreboard and Bet Tracking Functions ---
         function getScoreboardData() {
             const data = localStorage.getItem('scoreboardData');
-            return data ? JSON.parse(data) : { units: 0, betTracker: {} };
+            const defaults = { units: 0, betTracker: {} };
+            try {
+                const parsed = data ? JSON.parse(data) : {};
+                return { ...defaults, ...parsed }; 
+            } catch (e) {
+                console.error("Could not parse scoreboard data from localStorage", e);
+                return defaults;
+            }
         }
 
         function saveScoreboardData(data) {
@@ -541,7 +548,6 @@
                 row.classList.add('bet-placed');
                 resultButtons.forEach(btn => btn.disabled = false);
             } else {
-                // This logic prevents un-placing a resolved bet
                 if (data.betTracker[betId] && data.betTracker[betId].status !== 'resolved') {
                     delete data.betTracker[betId];
                     row.classList.remove('bet-placed');
