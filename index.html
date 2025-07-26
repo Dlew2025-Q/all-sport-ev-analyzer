@@ -446,21 +446,24 @@
 
 
         function displayResults(bets) {
-            currentBets = bets;
-            resultsBody.innerHTML = '';
             const betTracker = getBetTracker();
             
-            const betsToDisplay = [...bets];
+            const combinedBets = [...bets];
             const currentBetIds = new Set(bets.map(b => `${b.game}|${b.betDetails}`));
 
             for (const betId in betTracker) {
                 if (!currentBetIds.has(betId) && betTracker[betId].status !== 'resolved') {
-                    betsToDisplay.push(betTracker[betId].betData);
+                    if (betTracker[betId] && betTracker[betId].betData) {
+                        combinedBets.push(betTracker[betId].betData);
+                    }
                 }
             }
             
-            if (betsToDisplay.length > 0) {
-                betsToDisplay.forEach(bet => {
+            currentBets = combinedBets;
+            resultsBody.innerHTML = '';
+
+            if (currentBets.length > 0) {
+                currentBets.forEach(bet => {
                     const betId = `${bet.game}|${bet.betDetails}`;
                     const betState = betTracker[betId] || { status: 'new' };
                     
@@ -519,7 +522,9 @@
             const defaults = { units: 0, betTracker: {} };
             try {
                 const parsed = data ? JSON.parse(data) : {};
-                if (!parsed.betTracker) parsed.betTracker = {};
+                if (!parsed.betTracker || typeof parsed.betTracker !== 'object') {
+                    parsed.betTracker = {};
+                }
                 return { ...defaults, ...parsed }; 
             } catch (e) {
                 console.error("Could not parse scoreboard data from localStorage", e);
