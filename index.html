@@ -44,6 +44,13 @@
         .progress-bar-fill {
             transition: width 0.5s ease-in-out;
         }
+        /* CSS for the toggle switch */
+        input:checked ~ .dot {
+            transform: translateX(100%);
+        }
+        input:checked ~ .block {
+            background-color: #2563eb; /* blue-600 */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
@@ -88,7 +95,7 @@
                     <label for="home-team-filter" class="flex items-center cursor-pointer">
                         <div class="relative">
                             <input type="checkbox" id="home-team-filter" class="sr-only">
-                            <div class="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                            <div class="block bg-gray-600 w-14 h-8 rounded-full transition"></div>
                             <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition"></div>
                         </div>
                         <div class="ml-3 text-gray-300 font-medium">
@@ -488,10 +495,8 @@
             // Apply home team filter if active
             if (homeTeamFilter.checked) {
                 betsToDisplay = betsToDisplay.filter(bet => {
-                    if (!bet.game || !bet.betDetails) return false;
-                    const teams = bet.game.split(' vs. ');
-                    const homeTeam = teams[1];
-                    return bet.betDetails.includes(homeTeam);
+                    if (!bet.game || !bet.betDetails || !bet.home_team) return false;
+                    return bet.betDetails.includes(bet.home_team);
                 });
             }
 
