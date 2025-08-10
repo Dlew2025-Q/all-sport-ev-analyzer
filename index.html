@@ -62,17 +62,6 @@
             <p class="text-lg text-gray-400 mt-2">Scan live odds from major sports and let the AI find the value for you.</p>
         </header>
 
-        <div id="scoreboard" class="mb-8 p-6 bg-gray-900 rounded-lg">
-            <div class="flex justify-between items-center mb-2">
-                <h2 class="text-xl font-bold text-white">This Week's Performance</h2>
-                <button id="reset-week-button" class="text-sm text-blue-400 hover:text-blue-300">Reset Week</button>
-            </div>
-            <div class="w-full bg-gray-700 rounded-full h-4">
-                <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-teal-400 h-4 rounded-full progress-bar-fill" style="width: 0%;"></div>
-            </div>
-            <p id="unit-display" class="text-right mt-2 text-lg font-semibold text-gray-300">0.00 / 5.00 Units</p>
-        </div>
-
         <div class="text-center mb-8 flex flex-col md:flex-row justify-center items-center gap-4">
             <button id="analyze-button" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center" disabled>
                 <span id="button-text">Scan Live Odds for +EV Bets</span>
@@ -168,10 +157,6 @@
         const modalCloseButton = document.getElementById('modal-close-button');
         const modalLoader = document.getElementById('modal-loader');
         const insightsText = document.getElementById('insights-text');
-        const scoreboard = document.getElementById('scoreboard');
-        const progressBar = document.getElementById('progress-bar');
-        const unitDisplay = document.getElementById('unit-display');
-        const resetWeekButton = document.getElementById('reset-week-button');
         const homeTeamFilter = document.getElementById('home-team-filter');
         const filterContainer = document.getElementById('filter-container');
 
@@ -191,7 +176,6 @@
                  insightsModal.classList.add('hidden');
             }
         });
-        resetWeekButton.addEventListener('click', resetScoreboard);
         homeTeamFilter.addEventListener('change', () => {
             localStorage.setItem('homeTeamFilter', homeTeamFilter.checked);
             displayResults(currentBets); // Re-render the table with the filter
@@ -233,7 +217,6 @@
 
         window.onload = () => {
             fetchApiKeys();
-            updateScoreboard();
             const savedFilterState = localStorage.getItem('homeTeamFilter') === 'true';
             homeTeamFilter.checked = savedFilterState;
         };
