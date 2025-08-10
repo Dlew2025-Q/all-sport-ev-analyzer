@@ -365,6 +365,7 @@
             setLoadingState(true, 'bets');
             try {
                 lastAnalysisResult = await runFullAnalysis();
+                filterContainer.classList.remove('hidden'); // Make filter visible after first scan
                 if (lastAnalysisResult && lastAnalysisResult.quantitativeAnalysis) {
                     const processedBets = processBets(lastAnalysisResult.quantitativeAnalysis);
                     displayResults(processedBets);
@@ -492,7 +493,6 @@
                 }
             }
             
-            // Apply home team filter if active
             if (homeTeamFilter.checked) {
                 betsToDisplay = betsToDisplay.filter(bet => {
                     if (!bet.game || !bet.betDetails || !bet.home_team) return false;
@@ -500,7 +500,7 @@
                 });
             }
 
-            currentBets = betsToDisplay; // Update global state for copy function
+            currentBets = betsToDisplay;
             resultsBody.innerHTML = '';
 
             if (currentBets.length > 0) {
@@ -549,12 +549,10 @@
 
                 resultsTableContainer.classList.remove('hidden');
                 copyButtonContainer.classList.remove('hidden');
-                filterContainer.classList.remove('hidden');
                 noResultsDiv.classList.add('hidden');
             } else {
                 resultsTableContainer.classList.add('hidden');
                 copyButtonContainer.classList.add('hidden');
-                filterContainer.classList.add('hidden');
                 noResultsDiv.classList.remove('hidden');
             }
         }
