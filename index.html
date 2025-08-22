@@ -540,7 +540,7 @@
         // --- Scoreboard and Bet Tracking Functions ---
         function getScoreboardData() {
             const data = localStorage.getItem('scoreboardData');
-            const defaults = { units: 0, betTracker: {} };
+            const defaults = { betTracker: {} };
             try {
                 const parsed = data ? JSON.parse(data) : {};
                 if (!parsed.betTracker || typeof parsed.betTracker !== 'object') {
@@ -559,16 +559,6 @@
         
         function getBetTracker() {
             return getScoreboardData().betTracker;
-        }
-
-        function updateScoreboard() {
-            const data = getScoreboardData();
-            const units = data.units;
-            const goal = 5.0;
-            const progress = (units / goal) * 100;
-            
-            unitDisplay.textContent = `${units.toFixed(2)} / ${goal.toFixed(2)} Units`;
-            progressBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
         }
 
         function handleBetPlacedToggle(event) {
@@ -600,30 +590,15 @@
             const button = event.target;
             const container = button.parentElement;
             const betId = container.dataset.betId;
-            const odds = parseFloat(container.dataset.odds);
             const result = button.dataset.result;
 
-            let unitsChanged = 0;
-            if (result === 'W') {
-                if (odds > 0) {
-                    unitsChanged = odds / 100;
-                } else {
-                    unitsChanged = 100 / Math.abs(odds);
-                }
-            } else if (result === 'L') {
-                unitsChanged = -1.0;
-            }
-
             const data = getScoreboardData();
-            data.units += unitsChanged;
             if(data.betTracker[betId]) {
                 data.betTracker[betId].status = 'resolved';
                 data.betTracker[betId].result = result;
             }
             saveScoreboardData(data);
             
-            updateScoreboard();
-
             const row = container.closest('tr');
             row.classList.remove('bet-placed');
             row.classList.add('bet-resolved');
@@ -632,9 +607,8 @@
         }
 
         function resetScoreboard() {
-            if (confirm("Are you sure you want to reset your weekly progress? This cannot be undone.")) {
-                saveScoreboardData({ units: 0, betTracker: {} });
-                updateScoreboard();
+            if (confirm("Are you sure you want to reset all tracked bets? This cannot be undone.")) {
+                saveScoreboardData({ betTracker: {} });
                 if (currentBets.length > 0) {
                     displayResults(currentBets);
                 }
