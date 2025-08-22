@@ -225,7 +225,7 @@
             }
 
             console.log("Fetching live odds from The Odds API...");
-            const sports = ['americanfootball_nfl', 'basketball_nba', 'baseball_mlb', 'icehockey_nhl'];
+            const sports = ['americanfootball_nfl', 'americanfootball_ncaaf', 'basketball_nba', 'baseball_mlb', 'icehockey_nhl'];
             const bookmaker = 'draftkings';
             let allBets = [];
 
@@ -467,7 +467,7 @@
 
             for (const betId in betTracker) {
                 if (!currentBetIds.has(betId) && betTracker[betId].status !== 'resolved') {
-                    if (betTracker[betId] && betTracker[betId].betData && betTracker[betId].betData.game) { // Safety check
+                    if (betTracker[betId] && betTracker[betId].betData && betTracker[betId].betData.game) {
                         betsToDisplay.push(betTracker[betId].betData);
                     }
                 }
