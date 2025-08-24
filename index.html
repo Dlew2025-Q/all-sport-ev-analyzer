@@ -36,9 +36,6 @@
         }
         .bet-placed {
             opacity: 0.6;
-        }
-        .bet-resolved {
-            opacity: 0.4;
             background-color: #111827;
         }
         /* CSS for the toggle switch */
@@ -108,8 +105,7 @@
                             <th class="p-4 bg-gray-700">Win % Needed</th>
                             <th class="p-4 bg-gray-700">+EV</th>
                             <th class="p-4 bg-gray-700">Stake</th>
-                            <th class="p-4 bg-gray-700">Placed</th>
-                            <th class="p-4 bg-gray-700 rounded-tr-lg">Result</th>
+                            <th class="p-4 bg-gray-700 rounded-tr-lg">Placed</th>
                         </tr>
                     </thead>
                     <tbody id="results-body">
@@ -449,10 +445,8 @@
                 const decimalOdds = oddsNum > 0 ? (oddsNum / 100) + 1 : (100 / Math.abs(oddsNum)) + 1;
                 const ev = (bet.trueProbability * decimalOdds) - 1;
                 
-                // Base +EV filter
                 if (ev <= 0.02) return;
 
-                // Sport-specific ceiling filters
                 if (bet.sport === 'MLB' && ev > 0.045) return;
                 if ((bet.sport === 'NFL' || bet.sport === 'NCAAF') && ev > 0.15) return;
 
