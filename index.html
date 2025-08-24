@@ -448,12 +448,18 @@
                 if (isNaN(oddsNum) || typeof bet.trueProbability !== 'number' || bet.trueProbability <= 0 || bet.trueProbability >= 1) return;
                 const decimalOdds = oddsNum > 0 ? (oddsNum / 100) + 1 : (100 / Math.abs(oddsNum)) + 1;
                 const ev = (bet.trueProbability * decimalOdds) - 1;
-                if (ev > 0.02) {
-                    processed.push({
-                        ...bet,
-                        positiveEV: `+${(ev * 100).toFixed(1)}%`,
-                    });
-                }
+                
+                // Base +EV filter
+                if (ev <= 0.02) return;
+
+                // Sport-specific ceiling filters
+                if (bet.sport === 'MLB' && ev > 0.045) return;
+                if ((bet.sport === 'NFL' || bet.sport === 'NCAAF') && ev > 0.15) return;
+
+                processed.push({
+                    ...bet,
+                    positiveEV: `+${(ev * 100).toFixed(1)}%`,
+                });
             });
             return processed.sort((a, b) => parseFloat(b.positiveEV) - parseFloat(a.positiveEV));
         }
